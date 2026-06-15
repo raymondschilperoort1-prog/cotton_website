@@ -374,13 +374,59 @@ let INVESTOR_ANALYTICS = {
   ]
 };
 
+let LEADS: any[] = [];
 // Simple In-memory session store (token -> user)
 const ACTIVE_SESSIONS: { [token: string]: any } = {};
 
 // ==========================================
 // REST API ENDPOINTS
 // ==========================================
+app.post("/api/leads", (req, res) => {
+  const { type, name, company, email, message, payload } = req.body;
 
+  const newLead = {
+    id: `lead-${Date.now()}`,
+    type: type || "CONTACT",
+    name: name || "",
+    company: company || "",
+    email: email || "",
+    message: message || "",
+    payload: payload || {},
+    status: "NEW",
+    createdAt: new Date().toISOString(),
+  };
+
+  LEADS = [newLead, ...LEADS];
+
+  res.status(201).json({
+    success: true,
+    lead: newLead,
+    leads: LEADS,
+  });
+});
+
+app.get("/api/leads", reqAuth, (req: any, res) => {
+  if (req.user.role !== "ADMIN" && req.user.role !== "INVESTOR") {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  res.json({ leads: LEADS });
+});
+
+app.post("/api/leads/:id/status", reqAuth, (req: any, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  const lead = LEADS.find(l => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ error: "Lead not found" });
+  }
+
+  lead.status = status || lead.status;
+
+  res.json({ success: true, lead, leads: LEADS });
+});
 // 1. Enterprise Login
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;

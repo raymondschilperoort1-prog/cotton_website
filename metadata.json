@@ -1,0 +1,6 @@
+{
+  "name": "CottonRecycle",
+  "description": "Enterprise Mechanical Circular Cotton Recycling Platform. B2B Cotton Sourcing Marketplace, ESG Traceability, and Industrial Operations Intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

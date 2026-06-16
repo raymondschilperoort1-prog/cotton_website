@@ -86,9 +86,21 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
 
   const savings = calculateSavings();
 
-  const handleSupplierSubmit = (e: React.FormEvent) => {
+  const submitLeadFromPublicWebsite = async (lead: any) => {
+    const res = await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lead),
+    });
+    if (!res.ok) throw new Error("Lead submission failed");
+    return res.json();
+  };
+
+  const handleSupplierSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSupplierRegisterSuccess(`Supplier Onboarding Submitted! Our B2B operations unit has registered ${supplierForm.company}. A mechanical engineering coordinator will contact ${supplierForm.contact} within 6 business hours.`);
+    try {
+      await submitLeadFromPublicWebsite({ type: "SUPPLIER", name: supplierForm.contact, company: supplierForm.company, email: supplierForm.email, message: supplierForm.category + " - " + supplierForm.volume + " kg/month - " + supplierForm.material, payload: supplierForm });
+      onSupplierRegisterSuccess(`Supplier Onboarding Submitted! Our B2B operations unit has registered ${supplierForm.company}. A mechanical engineering coordinator will contact ${supplierForm.contact} within 6 business hours.`);
     setSupplierForm({
       company: "",
       contact: "",
@@ -102,11 +114,14 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
     });
     setSupplierStep(1);
     document.getElementById("hero-section")?.scrollIntoView({ behavior: 'smooth' });
+    } catch { alert("Submission failed. Please try again or contact info@cottonrecycle.com."); }
   };
 
-  const handleBuyerSubmit = (e: React.FormEvent) => {
+  const handleBuyerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onBuyerRegisterSuccess(`Enterprise Buyer Request Registered! Saved requirements for ${buyerForm.company}. Welcome aboard dynamic circular sourcing allocation.`);
+    try {
+      await submitLeadFromPublicWebsite({ type: "BUYER", name: buyerForm.contact, company: buyerForm.company, email: buyerForm.email, message: buyerForm.category + " - " + buyerForm.volumeGoal + " kg/year - " + buyerForm.certificationNeeded, payload: buyerForm });
+      onBuyerRegisterSuccess(`Enterprise Buyer Request Registered! Saved requirements for ${buyerForm.company}. Welcome aboard dynamic circular sourcing allocation.`);
     setBuyerForm({
       company: "",
       contact: "",
@@ -116,6 +131,23 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
       certificationNeeded: "GRS Standard Certified"
     });
     document.getElementById("hero-section")?.scrollIntoView({ behavior: 'smooth' });
+    } catch { alert("Submission failed. Please try again or contact info@cottonrecycle.com."); }
+  };
+
+  const handleInvestorDeckSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await submitLeadFromPublicWebsite({ type: "INVESTOR_DECK", name: investorDeckForm.name, company: investorDeckForm.fund, email: investorDeckForm.email, message: investorDeckForm.accredited === "YES" ? "Accredited institutional investor" : "Individual sourcing group", payload: investorDeckForm });
+      setShowDeckSuccess(true);
+    } catch { alert("Investor request failed. Please try again or contact info@cottonrecycle.com."); }
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await submitLeadFromPublicWebsite({ type: "CONTACT", name: contactForm.name, company: contactForm.company, email: contactForm.email, message: contactForm.interest + ": " + contactForm.message, payload: contactForm });
+      setShowContactSuccess(true);
+    } catch { alert("Message failed. Please try again or contact info@cottonrecycle.com."); }
   };
 
   return (
@@ -171,7 +203,7 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
           <div className="lg:col-span-7 space-y-6">
             <div className="inline-flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full text-xs font-mono text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Let op we werken op dit moment aan de website en sluiten de formulieren aan, voor meer info stuur een mail naar info@cottonrecycle.com Active</span>
+              <span>News Active</span>
             </div>
 
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl md:text-6xl text-white tracking-tight leading-tight lg:leading-[1.1]">
@@ -558,7 +590,7 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
                   </p>
                 </div>
               ) : (
-                <form onSubmit={(e) => { e.preventDefault(); setShowDeckSuccess(true); }} className="space-y-4">
+                <form onSubmit={handleInvestorDeckSubmit} className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-[11px] font-mono text-gray-400 uppercase">Director / Representative Name</label>
                     <input 
@@ -927,7 +959,7 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
                     type="number" 
                     placeholder="e.g. 25000" 
                     value={buyerForm.volumeGoal}
-                    onChange={(e) => setSupplierForm({...buyerForm, volumeGoal: e.target.value})}
+                    onChange={(e) => setBuyerForm({...buyerForm, volumeGoal: e.target.value})}
                     className="w-full bg-[#0a0a0a] border border-[#374151] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-white"
                   />
                 </div>
@@ -935,7 +967,7 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
                   <label className="text-xs text-gray-400 font-mono">Certification Standard Required</label>
                   <select 
                     value={buyerForm.certificationNeeded}
-                    onChange={(e) => setSupplierForm({...buyerForm, certificationNeeded: e.target.value})}
+                    onChange={(e) => setBuyerForm({...buyerForm, certificationNeeded: e.target.value})}
                     className="w-full bg-[#0a0a0a] border border-[#374151] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-white"
                   >
                     <option value="GRS Standard Certified">Global Recycled Standard (GRS)</option>
@@ -1013,7 +1045,7 @@ export default function PublicWebsite({ onLoginClick, onSupplierRegisterSuccess,
                 </p>
               </div>
             ) : (
-              <form onSubmit={(e) => { e.preventDefault(); setShowContactSuccess(true); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <form onSubmit={handleContactSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs text-gray-400 font-mono">Sender Name</label>
                   <input 

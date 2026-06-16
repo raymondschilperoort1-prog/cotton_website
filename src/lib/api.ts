@@ -1,6 +1,6 @@
 import { 
   User, Listing, RFQ, Order, FactoryMetrics, FactoryBatch, 
-  IngestRequest, Shipment, InventoryItem, EsgReport, InvestorAnalytics
+  IngestRequest, Shipment, InventoryItem, EsgReport, InvestorAnalytics, Lead
 } from "../types";
 
 const API_BASE = "";
@@ -269,4 +269,48 @@ export async function askAiProcurement(prompt: string, chatHistory: { role: stri
   } catch (err: any) {
     return `Error connecting to Sourcing Core: ${err.message || "Timeout"}`;
   }
+}
+
+
+export async function submitLead(lead: Partial<Lead>): Promise<boolean> {
+  try {
+    const res = await fetch(API_BASE + "/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lead),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function getLeads(): Promise<Lead[]> {
+  try {
+    const res = await fetch(API_BASE + "/api/leads", { headers: getHeaders() });
+    const data = await res.json();
+    return data.leads || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function updateLeadStatus(id: string, status: Lead["status"]): Promise<Lead[]> {
+  const res = await fetch(API_BASE + "/api/leads/" + id + "/status", {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  const data = await res.json();
+  return data.leads || [];
+}
+
+
+export async function deleteLead(id: string): Promise<Lead[]> {
+  const res = await fetch(API_BASE + "/api/leads/" + id, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  const data = await res.json();
+  return data.leads || [];
 }

@@ -6,13 +6,13 @@ import {
   CheckCircle, ArrowRight, ShieldAlert, Cpu, Thermometer, Droplets,
   Coins, Milestone, Landmark
 } from "lucide-react";
-import { User, Listing, RFQ, Order, FactoryMetrics, FactoryBatch, IngestRequest, Shipment, InventoryItem, EsgReport } from "../types";
+import { User, Listing, RFQ, Order, FactoryMetrics, FactoryBatch, IngestRequest, Shipment, InventoryItem, EsgReport, Lead } from "../types";
 import { 
   getListings, createListing, getRFQs, createRFQ, submitBid, 
   purchaseListing, getOrders, getIngestRequests, createIngestRequest, 
   updateIngestStatus, getFactoryData, createFactoryBatch, 
   updateBatchProgress, getShipments, getInventory, getEsgLedger, 
-  getInvestorAnalytics, askAiProcurement 
+  getInvestorAnalytics, askAiProcurement, getLeads, updateLeadStatus, deleteLead 
 } from "../lib/api";
 
 interface DashboardPortalProps {
@@ -36,6 +36,7 @@ export default function DashboardPortal({ user, onLogout, onShowNotification }: 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [esgLedger, setEsgLedger] = useState<EsgReport[]>([]);
   const [investorAnalytics, setInvestorAnalytics] = useState<any | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
 
   // Interaction Forms States
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,6 +108,8 @@ export default function DashboardPortal({ user, onLogout, onShowNotification }: 
       if (user.role === "ADMIN" || user.role === "INVESTOR") {
         const invAnalytics = await getInvestorAnalytics();
         setInvestorAnalytics(invAnalytics);
+        const dbLeads = await getLeads();
+        setLeads(dbLeads);
       }
     } catch (err) {
       console.error("Error loading dashboard portal datasets", err);
@@ -255,6 +258,29 @@ export default function DashboardPortal({ user, onLogout, onShowNotification }: 
     }
   };
 
+  const handleDeleteLead = async (leadId: string) => {
+    const confirmed = window.confirm("Delete this lead permanently? This cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      const updated = await deleteLead(leadId);
+      setLeads(updated);
+      onShowNotification("Lead deleted.");
+    } catch {
+      onShowNotification("Unable to delete lead.");
+    }
+  };
+
+  const handleUpdateLeadStatus = async (leadId: string, status: Lead["status"]) => {
+    try {
+      const updated = await updateLeadStatus(leadId, status);
+      setLeads(updated);
+      onShowNotification("Lead status updated to " + status + ".");
+    } catch {
+      onShowNotification("Unable to update lead status.");
+    }
+  };
+
   // Ask Chat Core Sourcing AI
   const handleAskAi = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -325,6 +351,17 @@ export default function DashboardPortal({ user, onLogout, onShowNotification }: 
               <LayoutDashboard className="w-4 h-4 text-emerald-400" />
               <span>Factory Command</span>
             </button>
+
+            {(user.role === "ADMIN" || user.role === "INVESTOR") && (
+              <button
+                onClick={() => setActiveTab("leads")}
+                id="tab-leads-btn"
+                className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-semibold tracking-tight transition ${activeTab === "leads" ? "bg-gray-800 text-white border-l-2 border-emerald-500" : "text-gray-400 hover:bg-gray-900 hover:text-white"}`}
+              >
+                <Landmark className="w-4 h-4 text-emerald-400" />
+                <span>Incoming Leads</span>
+              </button>
+            )}
 
             {/* B2B Sourcing Hub - ALL roles */}
             <button
@@ -444,6 +481,55 @@ export default function DashboardPortal({ user, onLogout, onShowNotification }: 
             <span className="text-gray-500 text-[10px]">LOCAL ENGINE STRETCH: 2026-05-23</span>
           </div>
         </div>
+
+        {activeTab === "leads" && (
+          <div className="space-y-6">
+            <div className="bg-[#111719] border border-gray-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-850 pb-3">
+                <div>
+                  <h3 className="font-display font-extrabold text-white text-base">Incoming Leads</h3>
+                  <p className="text-gray-500 text-xs">Investor, supplier, buyer and contact form submissions.</p>
+                </div>
+                <span className="text-xs text-emerald-400 font-mono">{leads.length} leads</span>
+              </div>
+              {leads.length === 0 ? (
+                <div className="text-gray-500 text-sm border border-gray-850 rounded-xl p-6 bg-black/30">No leads received yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {leads.map((lead) => (
+                    <div key={lead.id} className="border border-gray-850/80 rounded-xl p-4 bg-[#0b0f11]/70 space-y-3">
+                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">{lead.type}</span>
+                            <span className="font-mono text-[10px] text-gray-500">{new Date(lead.createdAt).toLocaleString()}</span>
+                            <span className="font-mono text-[10px] text-white bg-gray-800 px-2 py-0.5 rounded">{lead.status}</span>
+                          </div>
+                          <h4 className="text-white font-bold text-sm">{lead.name || "Unknown contact"}</h4>
+                          <p className="text-gray-400 text-xs">{lead.company || "No company"} • {lead.email || "No email"}</p>
+                          {lead.message && <p className="text-gray-300 text-xs mt-2 leading-relaxed">{lead.message}</p>}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(["NEW", "FOLLOWED_UP", "APPOINTMENT_PLANNED", "CLOSED"] as Lead["status"][]).map((status) => (
+                            <button key={status} onClick={() => handleUpdateLeadStatus(lead.id, status)} className={`px-2.5 py-1 rounded text-[10px] font-mono border transition ${lead.status === status ? "bg-emerald-500 text-black border-emerald-500" : "bg-gray-900 text-gray-400 border-gray-800 hover:text-white"}`}>
+                              {status.replace("_", " ")}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => handleDeleteLead(lead.id)}
+                            className="px-2.5 py-1 rounded text-[10px] font-mono border bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20 transition"
+                          >
+                            Delete Lead
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ======================================= */}
         {/* TAB 1: COMMAND CENTER */}

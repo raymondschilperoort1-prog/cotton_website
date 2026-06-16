@@ -1,8 +1,11 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import Database from "better-sqlite3";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import axios from "axios";
 
 dotenv.config();
 
@@ -30,6 +33,19 @@ const app = express();
 const PORT = 3010;
 
 app.use(express.json());
+async function sendTelegramMessage(message: string) {
+  try {
+    await axios.post(
+      `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+      {
+        chat_id: process.env.TELEGRAM_CHAT_ID,
+        text: message,
+      }
+    );
+  } catch (error) {
+    console.error("Telegram error:", error);
+  }
+}
 
 // ==========================================
 // MOCK DATA STORAGE (InMemory DB)
@@ -40,7 +56,7 @@ const USERS = [
   {
     id: "u-admin",
     email: "admin@cottonrecycle.com",
-    name: "Alex Mercer",
+    name: "Raymond Schilperoort",
     role: "ADMIN",
     company: "CottonRecycle™ Corporate",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop",
@@ -374,14 +390,26 @@ let INVESTOR_ANALYTICS = {
   ]
 };
 
-let LEADS: any[] = [];
 // Simple In-memory session store (token -> user)
 const ACTIVE_SESSIONS: { [token: string]: any } = {};
+
+const dataDir = path.join(process.cwd(), "data");
+fs.mkdirSync(dataDir, { recursive: true });
+const db = new Database(path.join(dataDir, "cottonrecycle.sqlite"));
+db.exec("CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, type TEXT, name TEXT, company TEXT, email TEXT, message TEXT, payload TEXT, status TEXT, createdAt TEXT)");
+
+function mapLead(row: any) {
+  return { ...row, payload: row.payload ? JSON.parse(row.payload) : {} };
+}
+
+function getAllLeads() {
+  return db.prepare("SELECT * FROM leads ORDER BY createdAt DESC").all().map(mapLead);
+}
 
 // ==========================================
 // REST API ENDPOINTS
 // ==========================================
-app.post("/api/leads", (req, res) => {
+app.post("/api/leads", async (req, res) => {
   const { type, name, company, email, message, payload } = req.body;
 
   const newLead = {
@@ -396,36 +424,64 @@ app.post("/api/leads", (req, res) => {
     createdAt: new Date().toISOString(),
   };
 
-  LEADS = [newLead, ...LEADS];
+  db.prepare("INSERT INTO leads (id, type, name, company, email, message, payload, status, createdAt) VALUES (@id, @type, @name, @company, @email, @message, @payload, @status, @createdAt)")
+    .run({ ...newLead, payload: JSON.stringify(newLead.payload || {}) });
+
+  sendTelegramMessage(`
+?? NIEUWE COTTONRECYCLE LEAD
+
+Type: ${newLead.type}
+Naam: ${newLead.name}
+Bedrijf: ${newLead.company}
+Email: ${newLead.email}
+
+Bericht:
+${newLead.message}
+`);
 
   res.status(201).json({
     success: true,
     lead: newLead,
-    leads: LEADS,
+    leads: getAllLeads(),
   });
 });
-
 app.get("/api/leads", reqAuth, (req: any, res) => {
   if (req.user.role !== "ADMIN" && req.user.role !== "INVESTOR") {
     return res.status(403).json({ error: "Access denied" });
   }
 
-  res.json({ leads: LEADS });
+  res.json({ leads: getAllLeads() });
 });
 
 app.post("/api/leads/:id/status", reqAuth, (req: any, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  const lead = LEADS.find(l => l.id === id);
+  const existing = db.prepare("SELECT * FROM leads WHERE id = ?").get(id);
 
-  if (!lead) {
+  if (!existing) {
     return res.status(404).json({ error: "Lead not found" });
   }
 
-  lead.status = status || lead.status;
+  db.prepare("UPDATE leads SET status = ? WHERE id = ?").run(status || existing.status, id);
+  const lead = db.prepare("SELECT * FROM leads WHERE id = ?").get(id);
 
-  res.json({ success: true, lead, leads: LEADS });
+  res.json({ success: true, lead: mapLead(lead), leads: getAllLeads() });
+});
+
+app.delete("/api/leads/:id", reqAuth, (req: any, res) => {
+  if (req.user.role !== "ADMIN" && req.user.role !== "INVESTOR") {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  const { id } = req.params;
+  const result = db.prepare("DELETE FROM leads WHERE id = ?").run(id);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Lead not found" });
+  }
+
+  res.json({ success: true, leads: getAllLeads() });
 });
 // 1. Enterprise Login
 app.post("/api/auth/login", (req, res) => {
@@ -659,7 +715,7 @@ app.get("/api/ingest", reqAuth, (req, res) => {
   res.json({ ingestRequests: INGEST_REQUESTS });
 });
 
-app.post("/api/ingest", (req, res) => {
+app.post("/api/ingest", async (req, res) => {
   const { company, contactPerson, country, category, estimatedVolumeMs, materialType, certification, pickupRequirements } = req.body;
   
   const newRequest = {
@@ -677,6 +733,17 @@ app.post("/api/ingest", (req, res) => {
   };
 
   INGEST_REQUESTS = [newRequest, ...INGEST_REQUESTS];
+await sendTelegramMessage(`
+?? NIEUWE LEAD COTTONRECYCLE
+
+Bedrijf: ${newRequest.company}
+Contact: ${newRequest.contactPerson}
+Land: ${newRequest.country}
+Categorie: ${newRequest.category}
+Volume: ${newRequest.estimatedVolumeMs} kg
+Materiaal: ${newRequest.materialType}
+Certificering: ${newRequest.certification}
+`);
   res.status(201).json({ success: true, request: newRequest, ingestRequests: INGEST_REQUESTS });
 });
 

@@ -145,3 +145,19 @@ export interface InvestorAnalytics {
     status: string;
   }[];
 }
+
+
+export type LeadType = "INVESTOR_DECK" | "CONTACT" | "SUPPLIER" | "BUYER";
+export type LeadStatus = "NEW" | "FOLLOWED_UP" | "APPOINTMENT_PLANNED" | "CLOSED";
+
+export interface Lead {
+  id: string;
+  type: LeadType;
+  name: string;
+  company: string;
+  email: string;
+  message: string;
+  payload: Record<string, any>;
+  status: LeadStatus;
+  createdAt: string;
+}

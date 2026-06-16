@@ -8,6 +8,18 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      setInterval(function () {
+        document.querySelectorAll('div').forEach(function (card) {
+          if (!card.textContent || !card.textContent.includes('REGISTRATION')) return;
+          card.querySelectorAll('button').forEach(function (button) {
+            var text = (button.textContent || '').trim();
+            if (text === 'FOLLOWED UP') button.textContent = 'Approve registration';
+            if (text === 'CLOSED') button.textContent = 'Reject registration';
+            if (text === 'NEW' || text === 'APPOINTMENT PLANNED') button.style.display = 'none';
+          });
+        });
+      }, 1200);
+    </script>
   </body>
 </html>
-

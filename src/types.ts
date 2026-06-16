@@ -147,8 +147,8 @@ export interface InvestorAnalytics {
 }
 
 
-export type LeadType = "INVESTOR_DECK" | "CONTACT" | "SUPPLIER" | "BUYER";
-export type LeadStatus = "NEW" | "FOLLOWED_UP" | "APPOINTMENT_PLANNED" | "CLOSED";
+export type LeadType = "INVESTOR_DECK" | "CONTACT" | "SUPPLIER" | "BUYER" | "REGISTRATION";
+export type LeadStatus = "NEW" | "FOLLOWED_UP" | "APPOINTMENT_PLANNED" | "CLOSED" | "APPROVED" | "DECLINED";
 
 export interface Lead {
   id: string;
